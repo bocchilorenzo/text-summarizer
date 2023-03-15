@@ -1,6 +1,7 @@
 # coding=utf-8
 import numpy as np
 from compress_fasttext.models import CompressedFastTextKeyedVectors
+from gensim.models import KeyedVectors
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.spatial.distance import cosine
 from nltk.corpus import stopwords
@@ -12,8 +13,15 @@ from copy import deepcopy
 
 
 class LookupTable:
-    def __init__(self, model_path):
-        self.model = CompressedFastTextKeyedVectors.load(path.abspath(model_path))
+    def __init__(self, model_path, model_type):
+        """
+        :param model_path: path to the compressed fasttext model
+        :param model_type: type of the model to use (fasttext or word2vec)
+        """
+        if model_type == "word2vec":
+            self.model = KeyedVectors.load_word2vec_format(model_path, binary=True, unicode_errors='ignore')
+        elif model_type == "fasttext":
+            self.model = CompressedFastTextKeyedVectors.load(path.abspath(model_path))
 
     def vec_word(self, word):
         """
@@ -57,17 +65,19 @@ class Summarizer:
     def __init__(
         self,
         model_path=None,
+        model_type="fasttext",
         tfidf_threshold=0.3,
         redundancy_threshold=0.9,
         language="italian",
     ):
         """
         :param model_path: path to the compressed fasttext model
+        :param model_type: type of the model to use (fasttext or word2vec)
         :param tfidf_threshold: threshold to filter relevant terms
         :param redundancy_threshold: threshold to filter redundant sentences
         :param language: language of the text to summarize
         """
-        self.lookup_table = LookupTable(model_path)
+        self.lookup_table = LookupTable(model_path, model_type)
         self.tfidf_threshold = tfidf_threshold
         self.sentence_retriever = []
         self.redundancy_threshold = redundancy_threshold
