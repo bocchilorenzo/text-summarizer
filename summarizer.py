@@ -69,6 +69,7 @@ class Summarizer:
         tfidf_threshold=0.3,
         redundancy_threshold=0.9,
         language="italian",
+        ngram_range=(1, 1),
     ):
         """
         :param model_path: path to the compressed fasttext model
@@ -76,12 +77,14 @@ class Summarizer:
         :param tfidf_threshold: threshold to filter relevant terms
         :param redundancy_threshold: threshold to filter redundant sentences
         :param language: language of the text to summarize
+        :param ngram_range: range of ngrams to use
         """
         self.lookup_table = LookupTable(model_path, model_type)
         self.tfidf_threshold = tfidf_threshold
         self.sentence_retriever = []
         self.redundancy_threshold = redundancy_threshold
         self.language = language
+        self.ngram_range = ngram_range
 
     def _preprocessing(self, text):
         """
@@ -109,7 +112,7 @@ class Summarizer:
         :param sentences: sentences of the document
         :return: centroid of the document
         """
-        tf = TfidfVectorizer()
+        tf = TfidfVectorizer(ngram_range=self.ngram_range)
         tfidf = tf.fit_transform(sentences).toarray().sum(0)
         tfidf = np.divide(tfidf, tfidf.max())
         words = tf.get_feature_names()
