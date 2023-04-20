@@ -2,6 +2,7 @@
 import numpy as np
 from compress_fasttext.models import CompressedFastTextKeyedVectors
 from gensim.models import KeyedVectors
+from gensim.models.fasttext import load_facebook_model
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.spatial.distance import cosine
 from nltk.corpus import stopwords
@@ -13,15 +14,19 @@ from copy import deepcopy
 
 
 class LookupTable:
-    def __init__(self, model_path, model_type):
+    def __init__(self, model_path, model_type, compressed=True):
         """
         :param model_path: path to the compressed fasttext model
         :param model_type: type of the model to use (fasttext or word2vec)
+        :param compressed: True if the model is compressed, False otherwise
         """
         if model_type == "word2vec":
             self.model = KeyedVectors.load_word2vec_format(model_path, binary=True, unicode_errors='ignore')
         elif model_type == "fasttext":
-            self.model = CompressedFastTextKeyedVectors.load(path.abspath(model_path))
+            if compressed:
+                self.model = CompressedFastTextKeyedVectors.load(path.abspath(model_path))
+            else:
+                self.model = load_facebook_model(path.abspath(model_path))
 
     def vec_word(self, word):
         """
@@ -66,6 +71,7 @@ class Summarizer:
         self,
         model_path=None,
         model_type="fasttext",
+        compressed=True,
         tfidf_threshold=0.3,
         redundancy_threshold=0.9,
         language="italian",
@@ -74,12 +80,13 @@ class Summarizer:
         """
         :param model_path: path to the compressed fasttext model
         :param model_type: type of the model to use (fasttext or word2vec)
+        :param compressed: True if the model is compressed, False otherwise
         :param tfidf_threshold: threshold to filter relevant terms
         :param redundancy_threshold: threshold to filter redundant sentences
         :param language: language of the text to summarize
         :param ngram_range: range of ngrams to use
         """
-        self.lookup_table = LookupTable(model_path, model_type)
+        self.lookup_table = LookupTable(model_path, model_type, compressed)
         self.tfidf_threshold = tfidf_threshold
         self.sentence_retriever = []
         self.redundancy_threshold = redundancy_threshold
