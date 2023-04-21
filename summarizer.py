@@ -101,6 +101,8 @@ class Summarizer:
         self.redundancy_threshold = redundancy_threshold
         self.language = language
         self.ngram_range = ngram_range
+        self.model_type = model_type
+        self.compressed = compressed
 
     def _preprocessing(self, text):
         """
@@ -137,7 +139,7 @@ class Summarizer:
             words[i]
             for i in range(len(tfidf))
             if tfidf[i] >= self.tfidf_threshold
-            and not self.lookup_table.unseen(words[i])
+            and (not self.lookup_table.unseen(words[i]) if self.model_type == "word2vec" else True)
         ]
 
         res = [self.lookup_table.vec_word(term) for term in relevant_terms]
@@ -156,7 +158,7 @@ class Summarizer:
             sentence = [
                 word
                 for word in sentences[i].split(" ")
-                if not self.lookup_table.unseen(word)
+                if (not self.lookup_table.unseen(word) if self.model_type == "word2vec" else True)
             ]
 
             if sentence:
