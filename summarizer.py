@@ -20,13 +20,16 @@ class LookupTable:
         :param model_type: type of the model to use (fasttext or word2vec)
         :param compressed: True if the model is compressed, False otherwise
         """
+        self.model_type = model_type
         if model_type == "word2vec":
             self.model = KeyedVectors.load_word2vec_format(model_path, binary=True, unicode_errors='ignore')
         elif model_type == "fasttext":
             if compressed:
                 self.model = CompressedFastTextKeyedVectors.load(path.abspath(model_path))
+                self.compressed = True
             else:
                 self.model = load_facebook_model(path.abspath(model_path))
+                self.compressed = False
 
     def vec_word(self, word):
         """
@@ -36,7 +39,10 @@ class LookupTable:
         :return: vector of the word
         """
         try:
-            return self.model[word]
+            if (self.model_type == "fasttext" and self.compressed) or self.model_type == "word2vec":
+                return self.model[word]
+            elif self.model_type == "fasttext" and not self.compressed:
+                return self.model.wv[word]
         except KeyError:
             return np.zeros(1)
 
@@ -60,7 +66,10 @@ class LookupTable:
         :return: True if the word is not in the vocabulary, False otherwise
         """
         try:
-            self.model[word]
+            if (self.model_type == "fasttext" and self.compressed) or self.model_type == "word2vec":
+                self.model[word]
+            elif self.model_type == "fasttext" and not self.compressed:
+                return not(word in self.model.wv.key_to_index)
             return False
         except KeyError:
             return True
