@@ -7,10 +7,68 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.spatial.distance import cosine
 from nltk.corpus import stopwords
 from nltk.tokenize import TreebankWordTokenizer
-from nltk.tokenize import sent_tokenize
+import ufal.udpipe
+from conllu import parse
+from yaml import safe_load
 from re import sub
 from os import path
 from copy import deepcopy
+
+
+# https://github.com/ufal/udpipe/tree/master/bindings/python/examples
+class Model:
+    def __init__(self, path):
+        """Load given model."""
+        self.model = ufal.udpipe.Model.load(path)
+        if not self.model:
+            raise Exception("Cannot load UDPipe model from file '%s'" % path)
+
+    def tokenize(self, text):
+        """Tokenize the text and return list of ufal.udpipe.Sentence-s."""
+        tokenizer = self.model.newTokenizer(self.model.DEFAULT)
+        if not tokenizer:
+            raise Exception("The model does not have a tokenizer")
+        return self._read(text, tokenizer)
+
+    def read(self, text, format):
+        """Load text in the given format (conllu|horizontal|vertical) and return list of ufal.udpipe.Sentence-s."""
+        input_format = ufal.udpipe.InputFormat.newInputFormat(format)
+        if not input_format:
+            raise Exception("Cannot create input format '%s'" % format)
+        return self._read(text, input_format)
+
+    def _read(self, text, input_format):
+        input_format.setText(text)
+        error = ufal.udpipe.ProcessingError()
+        sentences = []
+
+        sentence = ufal.udpipe.Sentence()
+        while input_format.nextSentence(sentence, error):
+            sentences.append(sentence)
+            sentence = ufal.udpipe.Sentence()
+        if error.occurred():
+            raise Exception(error.message)
+
+        return sentences
+
+    def tag(self, sentence):
+        """Tag the given ufal.udpipe.Sentence (inplace)."""
+        self.model.tag(sentence, self.model.DEFAULT)
+
+    def parse(self, sentence):
+        """Parse the given ufal.udpipe.Sentence (inplace)."""
+        self.model.parse(sentence, self.model.DEFAULT)
+
+    def write(self, sentences, format):
+        """Write given ufal.udpipe.Sentence-s in the required format (conllu|horizontal|vertical)."""
+
+        output_format = ufal.udpipe.OutputFormat.newOutputFormat(format)
+        output = ""
+        for sentence in sentences:
+            output += output_format.writeSentence(sentence)
+        output += output_format.finishDocument()
+
+        return output
 
 
 class LookupTable:
@@ -22,10 +80,14 @@ class LookupTable:
         """
         self.model_type = model_type
         if model_type == "word2vec":
-            self.model = KeyedVectors.load_word2vec_format(model_path, binary=True, unicode_errors='ignore')
+            self.model = KeyedVectors.load_word2vec_format(
+                model_path, binary=True, unicode_errors="ignore"
+            )
         elif model_type == "fasttext":
             if compressed:
-                self.model = CompressedFastTextKeyedVectors.load(path.abspath(model_path))
+                self.model = CompressedFastTextKeyedVectors.load(
+                    path.abspath(model_path)
+                )
                 self.compressed = True
             else:
                 self.model = load_facebook_model(path.abspath(model_path))
@@ -39,7 +101,9 @@ class LookupTable:
         :return: vector of the word
         """
         try:
-            if (self.model_type == "fasttext" and self.compressed) or self.model_type == "word2vec":
+            if (
+                self.model_type == "fasttext" and self.compressed
+            ) or self.model_type == "word2vec":
                 return self.model[word]
             elif self.model_type == "fasttext" and not self.compressed:
                 return self.model.wv[word]
@@ -66,10 +130,12 @@ class LookupTable:
         :return: True if the word is not in the vocabulary, False otherwise
         """
         try:
-            if (self.model_type == "fasttext" and self.compressed) or self.model_type == "word2vec":
+            if (
+                self.model_type == "fasttext" and self.compressed
+            ) or self.model_type == "word2vec":
                 self.model[word]
             elif self.model_type == "fasttext" and not self.compressed:
-                return not(word in self.model.wv.key_to_index)
+                return not (word in self.model.wv.key_to_index)
             return False
         except KeyError:
             return True
@@ -103,6 +169,11 @@ class Summarizer:
         self.ngram_range = ngram_range
         self.model_type = model_type
         self.compressed = compressed
+        with open("models.yml", "r") as f:
+            self.model_configs = safe_load(f)
+        self.sent_tokenizer = Model(
+            path.join("./models", self.model_configs[language] + ".udpipe")
+        )
 
     def _preprocessing(self, text):
         """
@@ -112,7 +183,7 @@ class Summarizer:
         :return: preprocessed text
         """
         # Get splitted sentences
-        sentences = self.get_data(text, self.language)
+        sentences = self.get_data(text)
 
         # Store the sentence before process them. We need them to build final summary
         self.sentence_retriever = deepcopy(sentences)
@@ -139,7 +210,11 @@ class Summarizer:
             words[i]
             for i in range(len(tfidf))
             if tfidf[i] >= self.tfidf_threshold
-            and (not self.lookup_table.unseen(words[i]) if self.model_type == "word2vec" else True)
+            and (
+                not self.lookup_table.unseen(words[i])
+                if self.model_type == "word2vec"
+                else True
+            )
         ]
 
         res = [self.lookup_table.vec_word(term) for term in relevant_terms]
@@ -158,7 +233,11 @@ class Summarizer:
             sentence = [
                 word
                 for word in sentences[i].split(" ")
-                if (not self.lookup_table.unseen(word) if self.model_type == "word2vec" else True)
+                if (
+                    not self.lookup_table.unseen(word)
+                    if self.model_type == "word2vec"
+                    else True
+                )
             ]
 
             if sentence:
@@ -171,7 +250,7 @@ class Summarizer:
     def _sentence_selection(self, centroid, sentences_dict):
         """
         Select the sentences of the summary
-        
+
         :param centroid: centroid of the document
         :param sentences_dict: dictionary of sentences vectorized
         :return: ids+importance of the sentences of the document, sentences of the document
@@ -195,7 +274,7 @@ class Summarizer:
     def summarize(self, text):
         """
         Summarize the text
-        
+
         :param text: text to summarize
         :return: ids+importance of the sentences of the document, sentences of the document
         """
@@ -215,24 +294,19 @@ class Summarizer:
     def remove_punctuation_nltk(self, data):
         """
         Remove punctuation from the sentences
-        
+
         :param data: sentences to process
         :return: sentences without punctuation
         """
-        to_return = []
-        for sentence in data:
-            temp = ""
-            tokenized = TreebankWordTokenizer().tokenize(sentence.lower())
-            for word in tokenized:
-                temp += word
-                temp += " "
-            to_return.append(temp[:-1])
-        return to_return
+        return [
+            " ".join(TreebankWordTokenizer().tokenize(sentence.lower()))
+            for sentence in data
+        ]
 
     def remove_stopwords(self, data):
         """
         Remove stopwords from the sentences
-        
+
         :param data: sentences to process
         :return: sentences without stopwords
         """
@@ -248,15 +322,17 @@ class Summarizer:
             to_return.append(stopped)
         return to_return
 
-    def get_data(self, text, language):
+    def get_data(self, text):
         """
         Split the text into sentences
-        
+
         :param text: text to split
-        :param language: language of the text
         :return: sentences of the text
         """
-        sentences = sent_tokenize(text, language)
+        sentences = self.sent_tokenizer.tokenize(text)
+        parsed = parse(self.sent_tokenizer.write(sentences, "conllu"))
+
+        sentences = [s.metadata["text"] for s in parsed]
         fixed_sentences = [self._fix_sentence(s) for s in sentences]
         return fixed_sentences
 

@@ -5,22 +5,28 @@ Text summarizer based on the code at https://github.com/holydrinker/text-summari
 The code was adapted to allow for the use of either a Word2Vec model or a fastText model. It also has the ability to work with compressed fastText models in order to be usable in an environment with limited resources.
 
 ## How to use
-Clone the repository, and install the requirements:
+1. Clone the repository, and install the requirements:
 ```bash
 pip install -r requirements.txt
 ```
 
-Download a model and place it in the root directory. Then, import the Summarizer:
+2. Install UDpipe 1. You can find installation instructions on https://ufal.mff.cuni.cz/udpipe/1/install. In short, download the release from Github and install the binary (on Windows, copy the folder for either the 32bit or 64bit binary wherever you want and add its path to the PATH environment variable).
+
+3. Download the zip with all the UDpipe models from http://hdl.handle.net/11234/1-3131
+
+4. Create a folder named 'models' in the root directory of this repository, and extract the models from the zip in it.
+
+5. Download a word embeddings model and place it in the root directory. We recommend using fastText. Then, import the Summarizer:
 ```python
 from summarizer import Summarizer
 ```
 
-Then, create a Summarizer object:
+6. Then, create a Summarizer object:
 ```python
 model = Summarizer("model_path")
 ``` 
 
-Finally, summarize a text:
+7. Finally, summarize a text:
 ```python
 model.summarize(text)
 ```
