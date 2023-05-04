@@ -342,10 +342,10 @@ class Summarizer:
         sentences = self.sent_tokenizer.tokenize(text)
         if self.tokenizer_mode == "udpipe":
             parsed = parse(self.sent_tokenizer.write(sentences, "conllu"))
+            sentences = [s.metadata["text"] for s in parsed]
         else:
             parsed = sentences
 
-        sentences = [s.metadata["text"] for s in parsed]
         fixed_sentences = [self._fix_sentence(s) for s in sentences]
         return fixed_sentences
 
