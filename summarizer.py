@@ -7,6 +7,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.spatial.distance import cosine
 from nltk.corpus import stopwords
 from nltk.tokenize import TreebankWordTokenizer
+from nltk.data import load
 import ufal.udpipe
 from conllu import parse
 from yaml import safe_load
@@ -151,6 +152,7 @@ class Summarizer:
         redundancy_threshold=0.9,
         language="italian",
         ngram_range=(1, 1),
+        tokenizer="udpipe",
     ):
         """
         :param model_path: path to the compressed fasttext model
@@ -160,6 +162,7 @@ class Summarizer:
         :param redundancy_threshold: threshold to filter redundant sentences
         :param language: language of the text to summarize
         :param ngram_range: range of ngrams to use
+        :param tokenizer: tokenizer to use (udpipe or nltk)
         """
         self.lookup_table = LookupTable(model_path, model_type, compressed)
         self.tfidf_threshold = tfidf_threshold
@@ -171,9 +174,16 @@ class Summarizer:
         self.compressed = compressed
         with open("models.yml", "r") as f:
             self.model_configs = safe_load(f)
-        self.sent_tokenizer = Model(
-            path.join("./models", self.model_configs[language] + ".udpipe")
-        )
+        if tokenizer == "udpipe":
+            self.tokenizer_mode = "udpipe"
+            self.sent_tokenizer = Model(
+                path.join("./models", self.model_configs[language] + ".udpipe")
+            )
+        elif tokenizer == "nltk":
+            self.tokenizer_mode = "nltk"
+            self.sent_tokenizer = load(f"tokenizers/punkt/{language}.pickle")
+        else:
+            raise ValueError("Invalid tokenizer")
 
     def _preprocessing(self, text):
         """
@@ -330,7 +340,10 @@ class Summarizer:
         :return: sentences of the text
         """
         sentences = self.sent_tokenizer.tokenize(text)
-        parsed = parse(self.sent_tokenizer.write(sentences, "conllu"))
+        if self.tokenizer_mode == "udpipe":
+            parsed = parse(self.sent_tokenizer.write(sentences, "conllu"))
+        else:
+            parsed = sentences
 
         sentences = [s.metadata["text"] for s in parsed]
         fixed_sentences = [self._fix_sentence(s) for s in sentences]
