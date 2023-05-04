@@ -5,6 +5,8 @@ Text summarizer based on the code at https://github.com/holydrinker/text-summari
 The code was adapted to allow for the use of either a Word2Vec model or a fastText model. It also has the ability to work with compressed fastText models in order to be usable in an environment with limited resources.
 
 ## How to use
+NOTE: You can skip steps 2, 3 and 4 if you already have UDpipe 1 and the models installed or if you want to use the NLTK sentence tokenizer instead of UDpipe's.
+
 1. Clone the repository, and install the requirements:
 ```bash
 pip install -r requirements.txt
@@ -21,17 +23,28 @@ pip install -r requirements.txt
 from summarizer import Summarizer
 ```
 
-6. Then, create a Summarizer object:
+6. Then, create a Summarizer object such as:
 ```python
-model = Summarizer("model_path")
+summ = Summarizer(
+    model_path="./fasttext.bin",
+    model_type="fasttext",
+    compressed=True,
+    language="italian",
+    tokenizer="udpipe"
+    )
 ``` 
 
 7. Finally, summarize a text:
 ```python
-model.summarize(text)
+summ.summarize(text)
 ```
 
 This will return a list of sentences, and a list of the corresponding scores. From this, you can order the scores and sentences, and return the top n sentences.
 
-## Where to get the model
+## Compatible languages
+If you use the NLTK tokenizer, the currently supported languages correspond with those for the PunktSentenceTokenizer, which are: czech, danish, dutch, english, estonian, finnish, french, german, greek, italian, malayalam, norwegian, polish, portuguese, russian, slovene, spanish, swedish, turkish.
+
+For the UDPipe tokenizer, the list is vastly larger and can be found at https://ufal.mff.cuni.cz/udpipe/1/models.
+
+## Where to get the word embedding model
 To get the compressed fastText models, you can check https://github.com/avidale/compress-fasttext/releases/tag/gensim-4-draft and https://zenodo.org/record/4905385. The standard fastText models can be found on https://fasttext.cc/docs/en/crawl-vectors.html.

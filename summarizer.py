@@ -9,7 +9,6 @@ from nltk.corpus import stopwords
 from nltk.tokenize import TreebankWordTokenizer
 from nltk.data import load
 import ufal.udpipe
-from conllu import parse
 from yaml import safe_load
 from re import sub
 from os import path
@@ -69,6 +68,14 @@ class Model:
             output += output_format.writeSentence(sentence)
         output += output_format.finishDocument()
 
+        return output
+
+    def write_list(self, sentences):
+        """Write given ufal.udpipe.Sentence-s in an iterable list."""
+
+        output_format = ufal.udpipe.OutputFormat.newOutputFormat("horizontal")
+        output = [output_format.writeSentence(sentence).strip() for sentence in sentences]
+        
         return output
 
 
@@ -149,7 +156,6 @@ class Summarizer:
         model_type="fasttext",
         compressed=True,
         tfidf_threshold=0.3,
-        redundancy_threshold=0.9,
         language="italian",
         ngram_range=(1, 1),
         tokenizer="udpipe",
@@ -159,7 +165,6 @@ class Summarizer:
         :param model_type: type of the model to use (fasttext or word2vec)
         :param compressed: True if the model is compressed, False otherwise
         :param tfidf_threshold: threshold to filter relevant terms
-        :param redundancy_threshold: threshold to filter redundant sentences
         :param language: language of the text to summarize
         :param ngram_range: range of ngrams to use
         :param tokenizer: tokenizer to use (udpipe or nltk)
@@ -167,7 +172,6 @@ class Summarizer:
         self.lookup_table = LookupTable(model_path, model_type, compressed)
         self.tfidf_threshold = tfidf_threshold
         self.sentence_retriever = []
-        self.redundancy_threshold = redundancy_threshold
         self.language = language
         self.ngram_range = ngram_range
         self.model_type = model_type
@@ -288,7 +292,7 @@ class Summarizer:
         :param text: text to summarize
         :return: ids+importance of the sentences of the document, sentences of the document
         """
-        self._check_params(self.redundancy_threshold, self.tfidf_threshold)
+        self._check_params(self.tfidf_threshold)
 
         # Sentences generation (with preprocessing) + centroid generation
         sentences = self._preprocessing(text)
@@ -341,12 +345,11 @@ class Summarizer:
         """
         sentences = self.sent_tokenizer.tokenize(text)
         if self.tokenizer_mode == "udpipe":
-            parsed = parse(self.sent_tokenizer.write(sentences, "conllu"))
-            sentences = [s.metadata["text"] for s in parsed]
+            parsed = self.sent_tokenizer.write_list(sentences)
         else:
             parsed = sentences
 
-        fixed_sentences = [self._fix_sentence(s) for s in sentences]
+        fixed_sentences = [self._fix_sentence(s) for s in parsed]
         return fixed_sentences
 
     @staticmethod
@@ -356,12 +359,7 @@ class Summarizer:
         return sentence
 
     @staticmethod
-    def _check_params(redundancy, tfidf):
-        try:
-            assert 0 <= redundancy <= 1
-        except AssertionError:
-            raise ("ERROR: the redundancy threshold is not valid")
-
+    def _check_params(tfidf):
         try:
             assert 0 <= tfidf <= 1
         except AssertionError:
