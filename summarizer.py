@@ -5,6 +5,9 @@ from gensim.models import KeyedVectors
 from gensim.models.fasttext import load_facebook_model
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.spatial.distance import cosine
+from nltk import download
+download("punkt")
+download("stopwords")
 from nltk.corpus import stopwords
 from nltk.tokenize import TreebankWordTokenizer
 from nltk.data import load
